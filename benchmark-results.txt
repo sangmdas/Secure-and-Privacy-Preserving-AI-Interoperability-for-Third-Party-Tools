@@ -1,0 +1,5 @@
+platform=Linux-6.18.35-x86_64-with-glibc2.39 python=3.12.13 resource_bytes=4096 samples=10000 concurrency=1
+CandidateAct encode+commitment: n=10000 median=15.57us p95=18.78us p99=49.00us
+LAVR+capability issuance: n=10000 median=131.27us p95=200.19us p99=340.29us
+proof-of-possession creation: n=10000 median=57.35us p95=84.11us p99=146.22us
+stateful Finality Sink verify+SQLite commit: n=1000 median=498.83us p95=755.12us p99=1083.82us

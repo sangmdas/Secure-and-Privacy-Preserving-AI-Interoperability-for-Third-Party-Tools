@@ -1,0 +1,14 @@
+[build-system]
+requires=["setuptools>=75"]
+build-backend="setuptools.build_meta"
+
+[project]
+name="das-ai-interoperability-finality"
+version="0.1.0"
+description="Runnable reference implementation of execution-finality AI interoperability"
+requires-python=">=3.11"
+dependencies=["cryptography>=46,<47"]
+
+[tool.setuptools.packages.find]
+where=["src"]
+

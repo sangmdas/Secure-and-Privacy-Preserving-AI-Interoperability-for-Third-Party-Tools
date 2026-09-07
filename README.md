@@ -1,11 +1,11 @@
-Secure AI-Assistant Interoperability: Execution-Finality Implementation
+# Secure AI-Assistant Interoperability: Execution-Finality Implementation
 
-This repository provides a bounded, runnable reference implementation derived from:
+## This repository provides a bounded, runnable reference implementation derived from:
 
 draft-das-execution-finality-ai-interoperability
 https://datatracker.ietf.org/doc/draft-das-execution-finality-ai-interoperability/
 
-The implementation demonstrates a technical model for allowing a first-party or third-party AI assistant to request a tightly scoped device action without granting the assistant unrestricted operating-system authority.
+### The implementation demonstrates a technical model for allowing a first-party or third-party AI assistant to request a tightly scoped device action without granting the assistant unrestricted operating-system authority.
 
 The core architectural rule is:
 
@@ -22,7 +22,7 @@ granting third-party assistants broad privileged access that creates unacceptabl
 
 The architecture attempts to make interoperability capability-specific, act-specific, user-intent-bound, revocable, non-bearer, and independently re-verified at the point of external effectuation.
 
-Why this matters for Apple/Siri, Android, and the EU Digital Markets Act
+## Why this matters for Apple/Siri, Android, and the EU Digital Markets Act
 
 A central technical difficulty in AI-assistant interoperability is that operating systems perform sensitive actions on behalf of users: sending messages, sharing files, opening applications, invoking device functions, accessing protected data, communicating with contacts, or causing other externally visible effects.
 
@@ -74,7 +74,7 @@ This means the operating system remains the authority boundary.
 
 The assistant remains a proposer.
 
-That distinction is particularly relevant to the Apple/Siri and third-party-assistant interoperability problem.
+### That distinction is particularly relevant to the Apple/Siri and third-party-assistant interoperability problem.
 
 A third-party assistant such as another AI provider could potentially request approved device actions while the platform continues to retain control of:
 

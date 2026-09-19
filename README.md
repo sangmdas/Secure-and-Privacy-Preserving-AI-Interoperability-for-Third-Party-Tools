@@ -660,6 +660,505 @@ Current-State Verification
 Atomic Consumption
         ↓
 External Effect
+
+## Why OAuth at the Final Execution Boundary Is Still Not Automatically Execution Finality
+
+### Technical Note on Authorization, Final Effectuation, and Functional Equivalence
+
+A recurring question in discussions of execution-finality architecture is:
+
+**If OAuth is enforced at the final or irreversible execution boundary, and the authorization is sender-constrained or otherwise non-bearer, why is any additional execution-finality architecture required?**
+
+The answer is that **placement at the final boundary and possession resistance are necessary properties in some deployments, but they are not by themselves sufficient to establish execution finality.**
+
+The distinction is functional rather than terminological.
+
+OAuth, Rich Authorization Requests, proof-of-possession mechanisms, sender-constrained tokens, transaction tokens, workload identity, or equivalent authorization mechanisms may all provide useful inputs to an execution-finality system.
+
+However, a system reaches execution-finality semantics only when the component controlling the actual consequence verifies the complete relationship between:
+
+- what was authorized;
+- what is actually about to happen;
+- the current protected system state;
+- freshness and replay state;
+- revocation or generation state;
+- the exact effectuation boundary;
+- and the atomic or crash-consistent transition that makes the operation effective.
+
+The important question is therefore not:
+
+> “Is OAuth used?”
+
+or:
+
+> “Is the OAuth Resource Server located near the final API?”
+
+The engineering question is:
+
+> **Does the component with mandatory control over the consequence independently establish that the exact pending effect is still authorized, under current protected state, immediately before that consequence is committed?**
+
+---
+
+## Three Different Security Questions
+
+These mechanisms address related but different questions.
+
+### 1. Who May Present the Authorization?
+
+Mechanisms such as sender-constrained tokens, proof of possession, mTLS, DPoP, workload identity, or hardware-bound credentials can establish that the presenter possesses an expected key or protected identity.
+
+This helps prevent simple token theft and unauthorized presentation.
+
+But proving who presents an authorization does not by itself prove that the **actual pending consequence** is identical to the operation that was authorized.
+
+---
+
+### 2. What Was Authorized?
+
+OAuth scopes, structured authorization details, transaction-specific parameters, policy objects, capabilities, or signed authorization records can describe what a principal is allowed to request.
+
+For example:
+
+```text
+SEND
+resource = file-A
+destination = alice@example.com
+application = messaging-service
+```
+
+This can provide strong and precise authorization semantics.
+
+But a precise authorization object does not by itself establish that the component about to perform the operation has independently reconstructed the actual pending effect and compared it with the authorized effect.
+
+---
+
+### 3. What Is Actually About to Become Effective Now?
+
+Execution finality addresses this third question.
+
+Immediately before effectuation, the enforcement boundary must determine the real operation that will occur.
+
+For example:
+
+```text
+Authorized operation:
+
+SEND(
+    resource = file-A,
+    destination = alice@example.com
+)
+```
+
+The actual operation reconstructed at the effectuation boundary must still be:
+
+```text
+Actual pending operation:
+
+SEND(
+    resource = file-A,
+    destination = alice@example.com
+)
+```
+
+If an intermediate component changes the destination:
+
+```text
+SEND(
+    resource = file-A,
+    destination = attacker@example.com
+)
+```
+
+the final boundary must independently detect the mismatch and refuse effectuation.
+
+The security property therefore depends not merely on an authorization check, but on **authorization-to-effect equality at commit time**.
+
+---
+
+# OAuth at the Final Boundary: What It Does and Does Not Establish
+
+Consider the following arrangement:
+
+```text
+AI Agent
+   |
+   v
+OAuth Authorization
+   |
+   v
+Sender-Constrained Token
+   |
+   v
+OAuth Resource Server
+   |
+   v
+Final / Irreversible Operation
+```
+
+This can be a strong design.
+
+However, merely placing the Resource Server at the final boundary does not automatically establish all execution-finality properties.
+
+Additional questions remain:
+
+```text
+Did the Resource Server reconstruct the exact pending effect?
+
+Did it compare every security-relevant parameter with
+the authorized operation?
+
+Did it verify current protected policy and revocation state?
+
+Did it detect generation or epoch changes?
+
+Can the same authority be replayed?
+
+Can two concurrent executions both consume the same authorization?
+
+Is authorization consumption atomic with the effect?
+
+What happens if the system crashes between authorization
+consumption and external effectuation?
+
+Can another execution path bypass this Resource Server?
+
+Can an upstream component substitute the resource,
+destination, amount, route, tool arguments, or execution context?
+
+Are cumulative budgets or quotas checked against protected state?
+
+Does uncertainty fail closed?
+```
+
+If these questions are not answered by enforceable mechanisms, the implementation may have strong OAuth security while still lacking the complete execution-finality invariant.
+
+---
+
+# Functional Comparison
+
+| Security Property | OAuth / Delegated Authorization | Sender-Constrained or Non-Bearer Authorization | OAuth at Final Boundary | Execution-Finality Architecture |
+|---|---|---|---|---|
+| Principal authorization | Yes | Yes | Yes | Yes |
+| Delegated access | Yes | Yes | Yes | May be used |
+| Fine-grained authorization parameters | Possible | Possible | Possible | Required where consequential |
+| Token theft resistance | Not inherent to bearer tokens | Yes | Possible | Authority must not be transferable outside its binding |
+| Final-boundary enforcement | Not inherently required | Not inherently required | Yes by deployment choice | Required |
+| Exact pending-effect reconstruction | Not inherently required | Not inherently required | Not guaranteed merely by placement | Required |
+| Authorized-versus-actual comparison | Application dependent | Application dependent | Application dependent | Required |
+| Current protected-state validation | Deployment dependent | Deployment dependent | Deployment dependent | Required where relevant |
+| Revocation / epoch fencing at commit | Deployment dependent | Deployment dependent | Deployment dependent | Required where relevant |
+| Replay/single-use protection | Optional/profile dependent | Improved but not necessarily single-use | Deployment dependent | Required for single-use authority |
+| TOCTOU-resistant check-and-commit | Not inherently defined | Not inherently defined | Not implied by final placement | Required |
+| Atomic or crash-consistent authority consumption | Not inherently defined | Not inherently defined | Not implied | Required where double effect is prohibited |
+| Alternate-path closure / complete mediation | Outside ordinary token semantics | Outside ordinary token semantics | Must be separately engineered | Required |
+| Fail-safe behavior under uncertainty | Deployment dependent | Deployment dependent | Deployment dependent | Required for protected effectuation |
+
+The distinction is therefore not that OAuth is incompatible with execution finality.
+
+The distinction is that **OAuth alone does not define the complete commit-time enforcement sequence.**
+
+---
+
+# When OAuth Becomes Functionally Equivalent
+
+OAuth can absolutely be used as part of an execution-finality implementation.
+
+Suppose an OAuth Resource Server is placed at the real effectuation boundary and performs the following operations:
+
+```text
+1. Receive the proposed operation.
+
+2. Keep the operation non-effective.
+
+3. Reconstruct the actual operation about to occur.
+
+4. Verify the authorization artifact.
+
+5. Verify sender / presenter binding.
+
+6. Verify exact operation parameters.
+
+7. Compare authorized operation with actual pending effect.
+
+8. Verify current protected policy state.
+
+9. Verify revocation state.
+
+10. Verify generation / fencing epoch.
+
+11. Verify freshness and replay state.
+
+12. Verify quota or cumulative budget where applicable.
+
+13. Verify that the authority is intended for this exact
+    enforcement boundary.
+
+14. Atomically consume the applicable authority or protected state.
+
+15. Commit the external effect.
+
+16. Reject the operation if any required value is absent,
+    stale, mismatched, replayed, revoked, unverifiable,
+    rolled back, or indeterminate.
+
+17. Ensure that no alternate execution path can create
+    the same protected effect without passing equivalent checks.
+```
+
+At that point, the implementation is no longer merely “OAuth placed close to the action.”
+
+It is implementing the execution-finality pattern using OAuth as one of its authorization mechanisms.
+
+The component could still be called:
+
+```text
+OAuth Resource Server
+API Gateway
+Policy Enforcement Point
+Reference Monitor
+Transaction Coordinator
+Command Gate
+Actuation Gate
+Safety Interlock
+Protected Service
+Execution Controller
+Hardware Security Monitor
+Finality Sink
+```
+
+The component name does not determine architectural equivalence.
+
+The **enforcement sequence does**.
+
+---
+
+# Functional-Equivalence Rule
+
+A useful engineering test is:
+
+```text
+Different names
+    +
+different protocols
+    +
+different implementation packaging
+    +
+different industry vocabulary
+
+do not create a different architecture
+
+IF
+
+the same mandatory functional enforcement sequence
+is implemented at the consequence boundary.
+```
+
+Conversely:
+
+```text
+Using the words
+
+"final boundary",
+"non-bearer",
+"proof of possession",
+"transaction authorization",
+or
+"OAuth Resource Server"
+
+does not establish execution finality
+
+UNLESS
+
+the required commit-time enforcement invariants
+are actually implemented.
+```
+
+---
+
+# Compact Architectural Expression
+
+The distinction can be summarized as:
+
+```text
+OAuth_at_Final_Boundary
++ Sender_Constraint
+
+        !=
+
+Execution_Finality
+```
+
+unless the deployment additionally implements:
+
+```text
+Execution_Finality =
+
+    Mandatory_Effectuation_Boundary
+
+  + Exact_Act_Binding
+
+  + Actual_Effect_Reconstruction
+
+  + Authorized_vs_Actual_Comparison
+
+  + Current_Protected_State_Check
+
+  + Revocation_and_Generation_Fencing
+
+  + Replay_and_Single_Use_Control
+
+  + TOCTOU_Resistant_Check_and_Commit
+
+  + Atomic_or_Crash_Consistent_Consumption
+
+  + Aggregate_Budget_Enforcement
+        where applicable
+
+  + Complete_Mediation_of_Alternate_Paths
+
+  + Fail_Safe_Uncertainty_Handling
+```
+
+---
+
+# Example: AI Tool Invocation
+
+Consider an AI assistant authorized to make a payment:
+
+```text
+amount      = EUR 100
+recipient   = Merchant-A
+account     = Account-X
+purpose     = Invoice-123
+```
+
+An OAuth authorization server may issue precise authority for this transaction.
+
+A sender-constrained token can prevent another party from simply stealing and presenting that token.
+
+A Resource Server at the payment endpoint can verify both.
+
+Execution finality adds the requirement that the payment effectuation boundary independently establishes that the transaction it is actually about to commit is still:
+
+```text
+EUR 100
+to Merchant-A
+from Account-X
+for Invoice-123
+```
+
+and not:
+
+```text
+EUR 10,000
+to Merchant-B
+from Account-X
+```
+
+It must additionally determine, where applicable, that:
+
+```text
+the authorization has not been revoked;
+
+the applicable policy epoch has not changed;
+
+the transaction has not already been executed;
+
+the spending budget remains available;
+
+a concurrent request has not already consumed the authority;
+
+the exact authority is intended for this payment boundary;
+
+and no alternate payment path can bypass the check.
+```
+
+Only then does the transaction become effective.
+
+---
+
+# Why This Matters for AI and Agent Interoperability
+
+The distinction becomes particularly important for AI agents because the component generating the operation may not be the component trusted to authorize its consequence.
+
+An AI model may validly generate:
+
+```text
+send_email(...)
+make_payment(...)
+upload_file(...)
+change_network_configuration(...)
+invoke_cloud_tool(...)
+operate_device(...)
+schedule_workload(...)
+release_model_output(...)
+```
+
+without being trusted with unconditional authority to make those actions externally effective.
+
+The architecture therefore separates:
+
+```text
+ability to propose
+```
+
+from:
+
+```text
+authority to cause consequence.
+```
+
+OAuth, MCP authorization, workload identity, RAR, DPoP, capability systems, hardware-backed credentials, or other mechanisms may participate in establishing that authority.
+
+Execution finality defines the additional requirement that the **actual resulting effect remains non-effective until the mandatory consequence boundary verifies the exact current authority for that exact effect.**
+
+---
+
+# Relationship to Existing Security Mechanisms
+
+This architecture is intended to complement rather than replace:
+
+- OAuth;
+- Rich Authorization Requests;
+- proof-of-possession mechanisms;
+- sender-constrained tokens;
+- workload identity;
+- transaction tokens;
+- capability systems;
+- access-control systems;
+- trusted execution environments;
+- hardware security modules;
+- attestation;
+- reference monitors;
+- policy enforcement points;
+- API gateways;
+- transaction coordinators;
+- secure elements;
+- safety interlocks;
+- industrial command gates;
+- operating-system sandboxing;
+- and conventional authentication and authorization mechanisms.
+
+These mechanisms can supply identity, authorization, evidence, protected state, cryptographic bindings, or implementation substrates.
+
+The additional execution-finality question is always:
+
+> **Immediately before the consequential transition becomes real, can the enforcement boundary independently establish that the exact pending effect still corresponds to current, valid, unconsumed, non-revoked authority—and prevent the effect otherwise?**
+
+That is the architectural distinction.
+
+---
+
+## Core Principle
+
+**Computation is not authority.**
+
+A model, application, agent, OAuth client, orchestration system, scheduler, controller, or upstream service may compute, propose, prepare, or authorize an operation.
+
+The operation becomes consequential only after the system controlling the actual effect independently establishes that the precise pending act is authorized under current protected conditions.
+
+That transition—from **proposed or authorized** to **externally effective**—is the execution-finality boundary.
+
 Full Technical Disclosure
 
 This GitHub repository intentionally implements a bounded reference profile rather than attempting to reproduce every architectural embodiment in code.
